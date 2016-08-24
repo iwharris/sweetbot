@@ -242,18 +242,15 @@ controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function
 
 controller.hears(['e', 'endscrum', 'end scrum', 'list'], ['direct_mention'], function (bot, message) {
   function formatScrumUpdateList(statuses) {
-    return _.chain(statuses)
-      .map(function(status) {
+    return _.join(_.map(statuses, function(status) {
         return template(
           '<@${user}>:\n' +
           '> Yesterday: ${yesterday}\n' +
           '> Today: ${today}\n' +
-          '> ' + (!status.blocked ? 'No blockers! :thumbsup:' : 'Blocked by: ${blockers}') + '\n' +
-          '\n',
+          '> ' + (!status.blocked ? 'No blockers! :thumbsup:' : 'Blocked by: ${blockers}') + '\n',
           status
         );
-      })
-      .value();
+      }), '\n');
   }
   var channel_data = getChannelFromStorage(message.channel);
 
