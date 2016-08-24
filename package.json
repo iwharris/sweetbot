@@ -27,6 +27,7 @@
   "homepage": "https://github.com/iwharris/sweetbot#readme",
   "dependencies": {
     "beepboop-botkit": "^1.4.1",
-    "botkit": "~0.2.2"
+    "botkit": "~0.2.2",
+    "lodash": "^4.15.0"
   }
 }

@@ -1,4 +1,5 @@
 var Botkit = require('botkit')
+var _ = require('lodash')
 
 var token = process.env.SLACK_TOKEN
 
