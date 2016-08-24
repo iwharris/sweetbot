@@ -73,6 +73,23 @@ controller.hears(['attachment'], ['direct_message', 'direct_mention'], function 
   })
 })
 
+function template(template_str, values) {
+  var compiled = _.template(template_str);
+  return compiled(values);
+}
+
+function isChannelScrumStarted(channel_id) {
+  return getChannelFromStorage(channel_id).scrumIsStarted;
+}
+
+function getChannelFromStorage(channel_id) {
+  var channel = {};
+  controller.storage.channels.get(channel_id, function(err, channel_data) {
+    channel = channel_data;
+  });
+  return channel;
+}
+
 var checkStatusLength = function(resp, convo) {
   if(_.size(resp.text) > 140) {
     convo.say('Be succinct! Your status update is too long! (' + (_.size(resp.text) - 140) + ' over)');
@@ -93,7 +110,7 @@ var createScrumNotesConversation = function(channel, user) {
       channel: channel.id
     };
 
-    convo.say('Hey! It\'s time to enter your scrum status for *' + channel.name + '*!');
+    convo.say(template('Hey! It\'s time to enter your scrum status for *${name}*!', channel));
     askYesterday(data, convo);
     return convo.next();
   };
@@ -190,7 +207,7 @@ var saveStatus = function(data, cb) {
   });
 };
 
-controller.hears(['startscrum'], ['direct_mention'], function (bot, message) {
+controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function (bot, message) {
   var createChannelInfoHandler = function(property) {
     return function (err, result) {
       if(err) {
@@ -215,6 +232,31 @@ controller.hears(['startscrum'], ['direct_mention'], function (bot, message) {
     default:
       return bot.reply(message, 'Can\'t retrieve channel details for unknown channel type');
   }
+});
+
+controller.hears(['e', 'endscrum', 'end scrum', 'list'], ['direct_mention'], function (bot, message) {
+  function formatScrumUpdateList(statuses) {
+    return _.chain(statuses)
+      .map(function(status) {
+        return template(
+          '<@${user}>:\n' +
+          '> Yesterday: ${yesterday}\n' +
+          '> Today: ${today}\n' +
+          '> ' + (!status.blocked ? 'No blockers! :thumbsup:' : 'Blocked by: ${blockers}') + '\n' +
+          '\n',
+          status
+        );
+      })
+      .value();
+  }
+  var channel_data = getChannelFromStorage(message.channel);
+
+  var text = 'Here is the scrum update! :mega:\n\n';
+  text += formatScrumUpdateList(channel_data.statuses);
+
+  console.log(text);
+
+  bot.reply(message, text);
 });
 
 controller.hears('.*', ['direct_message', 'direct_mention'], function (bot, message) {
