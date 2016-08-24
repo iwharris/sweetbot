@@ -1,14 +1,14 @@
 {
-  "name": "node-slack-bot",
-  "version": "1.0.0",
-  "description": "A sample Beep Boop Node.js Slackbot",
+  "name": "node-sweetbot",
+  "version": "0.0.1",
+  "description": "A Slack bot to do scrums in 140 characters or less",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/beepboophq/node-slack-bot.git"
+    "url": "git+https://github.com/iwharris/sweetbot.git"
   },
   "keywords": [
     "slackbot",
@@ -16,11 +16,11 @@
     "slack"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "bugs": {
-    "url": "https://github.com/beepboophq/node-slack-bot/issues"
+    "url": "https://github.com/iwharris/sweetbot/issues"
   },
-  "homepage": "https://github.com/beepboophq/node-slack-bot#readme",
+  "homepage": "https://github.com/iwharris/sweetbot#readme",
   "dependencies": {
     "beepboop-botkit": "^1.4.1",
     "botkit": "~0.2.2"
