@@ -1,6 +1,7 @@
 name: Sweetbot
 description: A Slack bot to host scrums in 140 characters or less.
 avatar: resources/avatar.png
+author: Spiro, Tom, and Ian
 #background: resources/background.png
 #config:
 #  - name: OPTION
