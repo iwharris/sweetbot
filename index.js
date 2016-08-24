@@ -90,6 +90,12 @@ function getChannelFromStorage(channel_id) {
   return channel;
 }
 
+function clearStatuses(channel_id) {
+  var channel_data = getChannelFromStorage(channel_id);
+  channel_data.statuses = [];
+  controller.storage.channels.save(channel_data, function(err) {});
+}
+
 var checkStatusLength = function(resp, convo) {
   if(_.size(resp.text) > 140) {
     convo.say('Be succinct! Your status update is too long! (' + (_.size(resp.text) - 140) + ' over)');
@@ -257,6 +263,9 @@ controller.hears(['e', 'endscrum', 'end scrum', 'list'], ['direct_mention'], fun
   console.log(text);
 
   bot.reply(message, text);
+
+  // Clear out statuses from memory
+  clearStatuses(message.channel);
 });
 
 controller.hears('.*', ['direct_message', 'direct_mention'], function (bot, message) {
