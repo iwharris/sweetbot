@@ -15,7 +15,11 @@
     "bot",
     "slack"
   ],
-  "author": "",
+  "contributors": [
+    {"name": "Spiro Floropoulos", "email": "spiro.floropoulos@appcarousel.com"},
+    {"name": "Thomas Schoendorfer", "email": "thomas.schoendorfer@appcarousel.com"},
+    {"name": "Ian Harris", "email": "ian.harris@appcarousel.com"}
+  ],
   "license": "GPL-3.0",
   "bugs": {
     "url": "https://github.com/iwharris/sweetbot/issues"
