@@ -1,17 +1,18 @@
-var Botkit = require('botkit')
-var _ = require('lodash')
+var Botkit = require('botkit');
+var _ = require('lodash');
 
-var token = process.env.SLACK_TOKEN
+var token = process.env.SLACK_TOKEN;
 
 var controller = Botkit.slackbot({
   // reconnect to Slack RTM when connection goes bad
   retry: Infinity,
-  debug: false
-})
+  debug: false,
+  //json_file_store: 'resources/test.json'
+});
 
 // Assume single team mode if we have a SLACK_TOKEN
 if (token) {
-  console.log('Starting in single-team mode')
+  console.log('Starting in single-team mode');
   controller.spawn({
     token: token
   }).startRTM(function (err, bot, payload) {
@@ -20,16 +21,16 @@ if (token) {
     }
 
     console.log('Connected to Slack RTM')
-  })
+  });
 // Otherwise assume multi-team mode - setup beep boop resourcer connection
 } else {
-  console.log('Starting in Beep Boop multi-team mode')
+  console.log('Starting in Beep Boop multi-team mode');
   require('beepboop-botkit').start(controller, { debug: true })
 }
 
 controller.on('bot_channel_join', function (bot, message) {
   bot.reply(message, "I'm here!")
-})
+});
 
 controller.hears(['hello', 'hi'], ['direct_mention'], function (bot, message) {
   bot.reply(message, 'Hello.')
@@ -72,6 +73,150 @@ controller.hears(['attachment'], ['direct_message', 'direct_mention'], function 
   })
 })
 
+var checkStatusLength = function(resp, convo) {
+  if(_.size(resp.text) > 140) {
+    convo.say('Be succinct! Your status update is too long! (' + (_.size(resp.text) - 140) + ' over)');
+    return true;
+  }
+
+  return false;
+};
+
+var createScrumNotesConversation = function(channel, user) {
+  return function (err, convo) {
+    if(err) {
+      return console.error(err);
+    }
+
+    data = {
+      user: user,
+      channel: channel.id
+    };
+
+    convo.say('Hey! It\'s time to enter your scrum status for *' + channel.name + '*!');
+    askYesterday(data, convo);
+    return convo.next();
+  };
+}
+
+var askYesterday = function(data, convo) {
+  return convo.ask('What did you do yesterday?', function(resp, convo) {
+    if(checkStatusLength(resp, convo)) {
+      askYesterday(data, convo);
+      return convo.next();
+    } else {
+      data.yesterday = resp.text;
+      askToday(data, convo);
+      return convo.next();
+    }
+  });
+};
+
+var askToday = function(data, convo) {
+  return convo.ask('What are you going to do today?', function(resp, convo) {
+    if(checkStatusLength(resp, convo)) {
+      askToday(data, convo);
+      return convo.next();
+    } else {
+      data.today = resp.text;
+      askBlocked(data, convo);
+      return convo.next();
+    }
+  });
+};
+
+var askBlockers = function(data, convo) {
+  return convo.ask('How are you blocked?', function(resp, convo) {
+    if(checkStatusLength(resp, convo)) {
+      askBlockers(data, convo);
+      return convo.next();
+    } else {
+      data.blockers = resp.text;
+      finishStatus(data, convo);
+      return convo.next();
+    }
+  });
+};
+
+var askBlocked = function(data, convo) {
+  return convo.ask('Are you blocked?', [
+    {
+      pattern: convo.task.bot.utterances.yes,
+      callback: function(response, convo) {
+        convo.say('Oh no!');
+        data.blocked = true;
+        askBlockers(data, convo);
+        convo.next();
+      }
+    },
+    {
+      pattern: convo.task.bot.utterances.no,
+      callback: function(response, convo) {
+        convo.say('Great!');
+        data.blocked = false;
+        finishStatus(data, convo);
+        convo.next();
+      }
+    }
+  ]);
+};
+
+var finishStatus = function(data, convo) {
+  console.log(data);
+  saveStatus(data, function (err) {
+    if (err) {
+      return console.error(err);
+    }
+
+    convo.say('Status updated! Thanks!')
+    convo.next();
+  });
+};
+
+var saveStatus = function(data, cb) {
+  controller.storage.channels.get(data.channel, function (err, savedData) {
+    if(err) {
+      return cb(err);
+    }
+
+    if(_.isNil(savedData)) {
+      savedData = { id: data.channel, statuses: [] };
+    }
+
+    var statuses = _.concat(savedData.statuses, data);
+    _.assign(savedData, { statuses: statuses });
+
+    return controller.storage.channels.save(savedData, cb);
+  });
+};
+
+controller.hears(['startscrum'], ['direct_mention'], function (bot, message) {
+  var createChannelInfoHandler = function(property) {
+    return function (err, result) {
+      if(err) {
+        console.error(err);
+      }
+
+      var channel = result[property];
+
+      bot.reply(message, "Scrum started in *" + channel.name + "*");
+
+      _.forEach(channel.members, function (user) {
+        bot.startPrivateConversation({ user: user }, createScrumNotesConversation(channel, user))
+      })
+    };
+  };
+
+  switch (message.channel[0]) {
+    case 'C':
+      return bot.api.channels.info({ channel: message.channel }, createChannelInfoHandler('channel'));
+    case 'G':
+      return bot.api.groups.info({ channel: message.channel }, createChannelInfoHandler('group'));
+    default:
+      return bot.reply(message, 'Can\'t retrieve channel details for unknown channel type');
+  }
+});
+
 controller.hears('.*', ['direct_message', 'direct_mention'], function (bot, message) {
   bot.reply(message, 'Sorry <@' + message.user + '>, I don\'t understand. \n')
-})
+});
