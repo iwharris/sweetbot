@@ -277,7 +277,9 @@ controller.hears(['e', 'endscrum', 'end scrum', 'stopscrum'], ['direct_mention']
   var channel_data = getChannelFromStorage(message.channel);
   if (!isChannelScrumStarted(channel_data)) {
     bot.reply(message, template('No scrum is currently active. :zzz: Start one by typing `@${bot_name} beginscrum`!', { bot_name: bot.identity.name }));
-    console.log(message);
+  }
+  else if (message.user != channel_data.scrumStartedBy) {
+    bot.reply(message, template('A scrum is currently active, but only <@${scrumStartedBy}> can end the scrum by typing `@${bot_name} endscrum`.', { scrumStartedBy: channel_data.scrumStartedBy, bot_name: bot.identity.name }))
   }
   else {
     var text = 'Here is the scrum update! :mega:\n\n';
