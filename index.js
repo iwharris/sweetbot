@@ -78,8 +78,9 @@ function template(template_str, values) {
   return compiled(values);
 }
 
-function isChannelScrumStarted(channel_id) {
-  return getChannelFromStorage(channel_id).scrumIsStarted;
+// Expects to receive a channel object
+function isChannelScrumStarted(channel_data) {
+  return channel_data && channel_data.isScrumStarted;
 }
 
 function getChannelFromStorage(channel_id) {
@@ -88,12 +89,6 @@ function getChannelFromStorage(channel_id) {
     channel = channel_data;
   });
   return channel;
-}
-
-function clearStatuses(channel_id) {
-  var channel_data = getChannelFromStorage(channel_id);
-  channel_data.statuses = [];
-  controller.storage.channels.save(channel_data, function(err) {});
 }
 
 var checkStatusLength = function(resp, convo) {
@@ -214,6 +209,17 @@ var saveStatus = function(data, cb) {
 };
 
 controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function (bot, message) {
+  function setScrumStarted(channel_data) {
+    if (!channel_data) {
+      channel_data = { id: message.channel };
+    }
+    channel_data.isScrumStarted = true;
+    channel_data.scrumStartedBy = message.user;
+    channel_data.scrumStartedAt = message.ts;
+    channel_data.statuses = [];
+    controller.storage.channels.save(channel_data, function(err) {});
+  }
+
   var createChannelInfoHandler = function(property) {
     return function (err, result) {
       if(err) {
@@ -230,17 +236,32 @@ controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function
     };
   };
 
-  switch (message.channel[0]) {
+  var channel_data = getChannelFromStorage(message.channel);
+  if (isChannelScrumStarted(channel_data)) {
+    return bot.reply(message, template('Scrum is already in progress (started by <@${scrumStartedBy}>). Type `@${bot_name} endscrum` to end it.', { scrumStartedBy: channel_data.scrumStartedBy, bot_name: bot.identity.name }));
+  }
+  else {
+    setScrumStarted(channel_data)
+    switch (message.channel[0]) {
     case 'C':
       return bot.api.channels.info({ channel: message.channel }, createChannelInfoHandler('channel'));
     case 'G':
       return bot.api.groups.info({ channel: message.channel }, createChannelInfoHandler('group'));
     default:
       return bot.reply(message, 'Can\'t retrieve channel details for unknown channel type');
+    }
   }
 });
 
-controller.hears(['e', 'endscrum', 'end scrum', 'list'], ['direct_mention'], function (bot, message) {
+controller.hears(['e', 'endscrum', 'end scrum', 'stopscrum'], ['direct_mention'], function (bot, message) {
+  function setScrumEnded(channel_data) {
+    channel_data.isScrumStarted = false;
+    channel_data.scrumStartedBy = null;
+    channel_data.scrumStartedAt = null;
+    channel_data.statuses = [];
+    controller.storage.channels.save(channel_data, function(err) {});
+  }
+
   function formatScrumUpdateList(statuses) {
     return _.join(_.map(statuses, function(status) {
         return template(
@@ -252,17 +273,22 @@ controller.hears(['e', 'endscrum', 'end scrum', 'list'], ['direct_mention'], fun
         );
       }), '\n');
   }
+
   var channel_data = getChannelFromStorage(message.channel);
+  if (!isChannelScrumStarted(channel_data)) {
+    bot.reply(message, template('No scrum is currently active. :zzz: Start one by typing `@${bot_name} beginscrum`!', { bot_name: bot.identity.name }));
+    console.log(message);
+  }
+  else {
+    var text = 'Here is the scrum update! :mega:\n\n';
+    text += formatScrumUpdateList(channel_data.statuses);
+    // console.log(text);
 
-  var text = 'Here is the scrum update! :mega:\n\n';
-  text += formatScrumUpdateList(channel_data.statuses);
+    bot.reply(message, text);
 
-  console.log(text);
-
-  bot.reply(message, text);
-
-  // Clear out statuses from memory
-  clearStatuses(message.channel);
+    // Clear out scrum vars
+    setScrumEnded(channel_data);
+  }
 });
 
 controller.hears('.*', ['direct_message', 'direct_mention'], function (bot, message) {
