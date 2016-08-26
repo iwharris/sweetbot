@@ -93,7 +93,7 @@ function getChannelFromStorage(channel_id) {
 
 var checkStatusLength = function(resp, convo) {
   if(_.size(resp.text) > 140) {
-    convo.say('Be succinct! Your status update is too long! (' + (_.size(resp.text) - 140) + ' over)');
+    convo.say('Keep it short and sweet! Your status update is too long! (' + (_.size(resp.text) - 140) + ' over)');
     return true;
   }
 
@@ -108,7 +108,8 @@ var createScrumNotesConversation = function(channel, user) {
 
     data = {
       user: user,
-      channel: channel.id
+      channel: channel.id,
+      ready: false
     };
 
     convo.say(template('Hey! It\'s time to enter your scrum status for *${name}*!', channel));
@@ -180,7 +181,8 @@ var askBlocked = function(data, convo) {
 };
 
 var finishStatus = function(data, convo) {
-  console.log(data);
+  data.ready = true;
+  console.log('finishing status', data);
   saveStatus(data, function (err) {
     if (err) {
       return console.error(err);
@@ -201,58 +203,69 @@ var saveStatus = function(data, cb) {
       savedData = { id: data.channel, statuses: [] };
     }
 
-    var statuses = _.concat(savedData.statuses, data);
+    var statuses = savedData.statuses;
+    _.remove(statuses, function(status) { return status.user == data.user});
+    statuses = _.concat(statuses, data);
     _.assign(savedData, { statuses: statuses });
 
     return controller.storage.channels.save(savedData, cb);
   });
 };
 
+// START SCRUM
 controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function (bot, message) {
-  function setScrumStarted(channel_data) {
-    if (!channel_data) {
-      channel_data = { id: message.channel };
-    }
+  function setScrumStarted(channel_data, channel_instance) {
+    var recipients = _(channel_instance.members)
+      .filter(function(id) { return id != bot.identity.id })  // omit own bot ID
+      .value();
+    console.log('recipients: ', recipients);
+    
+    channel_data.statuses = _(recipients).map(function(id) { return { user: id, channel: message.channel, ready: false }; }).value();
+
     channel_data.isScrumStarted = true;
     channel_data.scrumStartedBy = message.user;
     channel_data.scrumStartedAt = message.ts;
-    channel_data.statuses = [];
+    console.log('savedata', channel_data)
     controller.storage.channels.save(channel_data, function(err) {});
+
+    bot.reply(message, "Scrum started in *" + channel_instance.name + "*");
+    // Launch direct messages to each user
+    _.forEach(recipients, function (user) {
+        bot.startPrivateConversation({ user: user }, createScrumNotesConversation(channel_instance, user));
+    });
   }
 
-  var createChannelInfoHandler = function(property) {
+  var createChannelInfoHandler = function(property, channel_data) {
     return function (err, result) {
       if(err) {
         console.error(err);
       }
-
-      var channel = result[property];
-
-      bot.reply(message, "Scrum started in *" + channel.name + "*");
-
-      _.forEach(channel.members, function (user) {
-        bot.startPrivateConversation({ user: user }, createScrumNotesConversation(channel, user))
-      })
+      // console.log(result[property]);
+      setScrumStarted(channel_data, result[property]);
     };
   };
 
   var channel_data = getChannelFromStorage(message.channel);
+  if (!channel_data) {
+    channel_data = { id: message.channel };
+  }
   if (isChannelScrumStarted(channel_data)) {
     return bot.reply(message, template('Scrum is already in progress (started by <@${scrumStartedBy}>). Type `@${bot_name} endscrum` to end it.', { scrumStartedBy: channel_data.scrumStartedBy, bot_name: bot.identity.name }));
   }
   else {
-    setScrumStarted(channel_data)
+    // Call correct channel handler for public channel or private channel/group
     switch (message.channel[0]) {
-    case 'C':
-      return bot.api.channels.info({ channel: message.channel }, createChannelInfoHandler('channel'));
-    case 'G':
-      return bot.api.groups.info({ channel: message.channel }, createChannelInfoHandler('group'));
-    default:
-      return bot.reply(message, 'Can\'t retrieve channel details for unknown channel type');
+      case 'C':
+        return bot.api.channels.info({ channel: message.channel }, createChannelInfoHandler('channel', channel_data));
+      case 'G':
+        return bot.api.groups.info({ channel: message.channel }, createChannelInfoHandler('group', channel_data));
+      default:
+        return bot.reply(message, 'Can\'t retrieve channel details for unknown channel type');  
     }
   }
 });
 
+// END SCRUM
 controller.hears(['e', 'endscrum', 'end scrum', 'stopscrum'], ['direct_mention'], function (bot, message) {
   function setScrumEnded(channel_data) {
     channel_data.isScrumStarted = false;
@@ -262,8 +275,12 @@ controller.hears(['e', 'endscrum', 'end scrum', 'stopscrum'], ['direct_mention']
     controller.storage.channels.save(channel_data, function(err) {});
   }
 
-  function formatScrumUpdateList(statuses) {
-    return _.join(_.map(statuses, function(status) {
+  function getReadyStatuses(statuses) { return _(statuses).filter(function(status) { return status.ready; }).value(); }
+  function getUnreadyStatuses(statuses) { return _(statuses).filter(function(status) { return !status.ready; }).value(); }
+
+  function formatScrumUpdateList(ready_statuses) {
+    return _.join(
+      _.map(ready_statuses, function(status) {
         return template(
           '<@${user}>:\n' +
           '> Yesterday: ${yesterday}\n' +
@@ -274,7 +291,13 @@ controller.hears(['e', 'endscrum', 'end scrum', 'stopscrum'], ['direct_mention']
       }), '\n');
   }
 
+  function formatScrumMissedList(unready_statuses) {
+    return _.join(_.map(unready_statuses, function(status) { return template('<@${user}>', status); }), ', ');
+  }
+
   var channel_data = getChannelFromStorage(message.channel);
+
+  console.log(channel_data);
   if (!isChannelScrumStarted(channel_data)) {
     bot.reply(message, template('No scrum is currently active. :zzz: Start one by typing `@${bot_name} beginscrum`!', { bot_name: bot.identity.name }));
   }
@@ -283,8 +306,14 @@ controller.hears(['e', 'endscrum', 'end scrum', 'stopscrum'], ['direct_mention']
   }
   else {
     var text = 'Here is the scrum update! :mega:\n\n';
-    text += formatScrumUpdateList(channel_data.statuses);
-    // console.log(text);
+
+    var ready_statuses = getReadyStatuses(channel_data.statuses);
+    text += _.size(ready_statuses) != 0 ? formatScrumUpdateList(ready_statuses) : 'No one submitted a scrum update! :fearful:';
+    
+    text += '\n\n';
+
+    var unready_statuses = getUnreadyStatuses(channel_data.statuses);
+    text += _.size(unready_statuses) != 0 ? 'The following users did not submit an update:\n> ' + formatScrumMissedList(unready_statuses) : 'Everyone submitted an update! :tada:';
 
     bot.reply(message, text);
 
