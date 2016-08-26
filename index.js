@@ -162,7 +162,7 @@ var askBlocked = function(data, convo) {
     {
       pattern: convo.task.bot.utterances.yes,
       callback: function(response, convo) {
-        convo.say('Oh no!');
+        convo.say('Oh no! :worried:');
         data.blocked = true;
         askBlockers(data, convo);
         convo.next();
@@ -171,7 +171,7 @@ var askBlocked = function(data, convo) {
     {
       pattern: convo.task.bot.utterances.no,
       callback: function(response, convo) {
-        convo.say('Great!');
+        convo.say('Great! :thumbsup:');
         data.blocked = false;
         finishStatus(data, convo);
         convo.next();
@@ -188,7 +188,7 @@ var finishStatus = function(data, convo) {
       return console.error(err);
     }
 
-    convo.say('Status updated! Thanks!')
+    convo.say('Status updated! Thanks! :white_check_mark:');
     convo.next();
   });
 };
@@ -211,6 +211,22 @@ var saveStatus = function(data, cb) {
     return controller.storage.channels.save(savedData, cb);
   });
 };
+
+// GET SCRUM STATUS
+controller.hears(['status'], ['direct_mention'], function (bot, message) {
+  var channel_data = getChannelFromStorage(message.channel);
+  if (isChannelScrumStarted(channel_data)) {
+    var total = _.size(channel_data.statuses);
+    var submitted = _(channel_data.statuses).filter(function(status) { return status.ready; }).size();
+    var text = 'Scrum is *Active*, started by <@${initiator}>! :sunny:\n' +
+      (total == submitted ? ':white_check_mark: All ${total}' : '${count} of ${total}') + ' users have submitted a scrum update.\n' +
+      'Type `<@${name}> endscrum` at any time to end the scrum.';
+    bot.reply(message, template(text, { initiator: channel_data.scrumStartedBy, count: submitted, total: total, name: bot.identity.name }));
+  }
+  else {
+    bot.reply(message, template('Scrum is *Inactive*. :zzz:\nTo start a scrum, type `<@${name}> beginscrum`.', { name: bot.identity.name }));
+  }
+});
 
 // START SCRUM
 controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function (bot, message) {
@@ -250,7 +266,7 @@ controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function
     channel_data = { id: message.channel };
   }
   if (isChannelScrumStarted(channel_data)) {
-    return bot.reply(message, template('Scrum is already in progress (started by <@${scrumStartedBy}>). Type `@${bot_name} endscrum` to end it.', { scrumStartedBy: channel_data.scrumStartedBy, bot_name: bot.identity.name }));
+    return bot.reply(message, template('Scrum is already *Active* :sunny: (started by <@${scrumStartedBy}>). Type `@${bot_name} endscrum` to end it.', { scrumStartedBy: channel_data.scrumStartedBy, bot_name: bot.identity.name }));
   }
   else {
     // Call correct channel handler for public channel or private channel/group
@@ -305,7 +321,7 @@ controller.hears(['e', 'endscrum', 'end scrum', 'stopscrum'], ['direct_mention']
     bot.reply(message, template('A scrum is currently active, but only <@${scrumStartedBy}> can end the scrum by typing `@${bot_name} endscrum`.', { scrumStartedBy: channel_data.scrumStartedBy, bot_name: bot.identity.name }))
   }
   else {
-    var text = 'Here is the scrum update! :mega:\n\n';
+    var text = 'Hi team, here is your scrum update: :mega:\n\n';
 
     var ready_statuses = getReadyStatuses(channel_data.statuses);
     text += _.size(ready_statuses) != 0 ? formatScrumUpdateList(ready_statuses) : 'No one submitted a scrum update! :fearful:';
