@@ -46,7 +46,7 @@ controller.hears('.*', ['mention'], function (bot, message) {
 
 controller.hears('help', ['direct_message', 'direct_mention'], function (bot, message) {
   var help = 'I will respond to the following messages: \n' +
-      '>>>`@${name}> beginscrum` to start a scrum.\n' +
+      '>>>`<@${name}> beginscrum` to start a scrum.\n' +
       '`<@${name}> endscrum` to finish a scrum once it is started.\n' +
       '`<@${name}> status` to see my current status.\n' +
       '`<@${name}> about` to learn more about me.\n' +
