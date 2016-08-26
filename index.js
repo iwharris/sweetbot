@@ -223,9 +223,9 @@ controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function
     var recipients = _(channel_instance.members)
       .filter(function(id) { return id != bot.identity.id })  // omit own bot ID
       .value();
-    console.log('recipients: ', recipients);ƒ
+    console.log('recipients: ', recipients);
     
-    channel_data.statuses = _(recipients).map(function(iƒd) { return { user: id, channel: message.channel, ready: false }; }).value();
+    channel_data.statuses = _(recipients).map(function(id) { return { user: id, channel: message.channel, ready: false }; }).value();
 
     channel_data.isScrumStarted = true;
     channel_data.scrumStartedBy = message.user;
@@ -233,7 +233,7 @@ controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function
     console.log('savedata', channel_data)
     controller.storage.channels.save(channel_data, function(err) {});
 
-    bot.reply(message, "Scrum started in *" + channel_instance.name + "*");ƒ
+    bot.reply(message, "Scrum started in *" + channel_instance.name + "*");
     // Launch direct messages to each user
     _.forEach(recipients, function (user) {
         bot.startPrivateConversation({ user: user }, createScrumNotesConversation(channel_instance, user));
