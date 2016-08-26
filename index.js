@@ -244,7 +244,7 @@ controller.hears(['b', 'beginscrum', 'startscrum'], ['direct_mention'], function
     return function (err, result) {
       if(err) {
         console.error(err);
-      }ƒ
+      }
       setScrumStarted(channel_data, result[property]);
     };
   };
