@@ -16,6 +16,9 @@ Introducing  SweetBot! (scrum tweet bot! short and sweet bot!) Using one weird o
 - It will optimize your KPIs!
 - It will leverage your team's synergies to deliver innovative value, increasing your ROI!
 
+### Demo Slides
+[Link (PDF)](slides/hackday-demo.pdf)
+
 
 ### Authors
 - [Spiro Floropoulos](https://github.com/spirodonfl)
